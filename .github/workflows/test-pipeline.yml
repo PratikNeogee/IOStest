@@ -3,7 +3,7 @@ name: Test Pipeline
 # Trigger on push to main branch or pull requests
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
