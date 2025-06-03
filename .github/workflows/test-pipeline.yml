@@ -1,1 +1,77 @@
+name: Test Pipeline
 
+# Trigger on push to main branch or pull requests
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-environment:
+    name: Test macOS Environment
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Test macOS Environment
+      run: |
+        echo "🍎 Testing macOS Environment"
+        echo "macOS Version:"
+        sw_vers
+        echo ""
+        echo "Xcode Version:"
+        xcode-select --version
+        xcrun xcodebuild -version
+        echo ""
+        echo "Available Xcode Versions:"
+        ls /Applications/ | grep Xcode
+    
+    - name: Test iOS Simulators
+      run: |
+        echo "📱 Available iOS Simulators:"
+        xcrun simctl list devices available | head -20
+        echo ""
+        echo "iOS SDKs:"
+        xcrun xcodebuild -showsdks | grep ios
+    
+    - name: Test Build Tools
+      run: |
+        echo "🔨 Testing Build Tools"
+        echo "CocoaPods version:"
+        pod --version || echo "CocoaPods not installed"
+        echo ""
+        echo "Fastlane version:"
+        fastlane --version || echo "Fastlane not installed"
+        echo ""
+        echo "xcpretty version:"
+        xcpretty --version || echo "xcpretty not installed"
+    
+    - name: Test Certificate Handling
+      run: |
+        echo "🔐 Testing Certificate System"
+        security list-keychains
+        echo ""
+        echo "Creating test keychain..."
+        security create-keychain -p test123 test.keychain
+        security list-keychains
+        echo "Test keychain created successfully!"
+        security delete-keychain test.keychain
+    
+    - name: Create Test Artifacts
+      run: |
+        echo "📦 Creating Test Artifacts"
+        mkdir -p test-output
+        echo "GitHub Actions iOS test completed at $(date)" > test-output/test-result.txt
+        echo "macOS Version: $(sw_vers -productVersion)" >> test-output/test-result.txt
+        echo "Xcode Version: $(xcrun xcodebuild -version | head -1)" >> test-output/test-result.txt
+        ls -la test-output/
+    
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: test-output/
+        retention-days: 30
