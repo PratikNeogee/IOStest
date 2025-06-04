@@ -1,4 +1,4 @@
-name: iOS App CI/CD
+name: iOS CI/CD Pipeline
 
 on:
   push:
@@ -19,114 +19,72 @@ jobs:
       with:
         xcode-version: latest-stable
         
-    - name: Create iOS Project
-      run: |
-        echo "📱 Creating new iOS project..."
-        mkdir -p MyApp
-        cd MyApp
-        
-        # Create a basic iOS project structure
-        cat > Package.swift << 'EOF'
-        // swift-tools-version: 5.9
-        import PackageDescription
-        
-        let package = Package(
-            name: "MyApp",
-            platforms: [.iOS(.v15)],
-            products: [
-                .library(name: "MyApp", targets: ["MyApp"])
-            ],
-            targets: [
-                .target(name: "MyApp"),
-                .testTarget(name: "MyAppTests", dependencies: ["MyApp"])
-            ]
-        )
-        EOF
-        
-        # Create source files
-        mkdir -p Sources/MyApp
-        cat > Sources/MyApp/ContentView.swift << 'EOF'
-        import SwiftUI
-        
-        public struct ContentView: View {
-            public init() {}
-            
-            public var body: some View {
-                VStack {
-                    Text("Hello, iOS!")
-                        .font(.largeTitle)
-                        .foregroundColor(.blue)
-                    
-                    Button("Tap Me") {
-                        print("Button tapped!")
-                    }
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                }
-                .padding()
-            }
-        }
-        EOF
-        
-        # Create test file
-        mkdir -p Tests/MyAppTests
-        cat > Tests/MyAppTests/MyAppTests.swift << 'EOF'
-        import XCTest
-        @testable import MyApp
-        
-        final class MyAppTests: XCTestCase {
-            func testExample() {
-                // Simple test to verify the module loads
-                let view = ContentView()
-                XCTAssertNotNil(view)
-            }
-        }
-        EOF
-        
-    - name: Build Swift Package
-      run: |
-        cd MyApp
-        echo "🔨 Building Swift package..."
-        swift build -v
-        
-    - name: Run Tests
-      run: |
-        cd MyApp
-        echo "🧪 Running tests..."
-        swift test -v
-        
-    - name: Build for iOS Simulator
-      run: |
-        cd MyApp
-        echo "📱 Building for iOS Simulator..."
-        swift build -v --destination generic/platform=iOS\ Simulator
-        
-    - name: Test on iOS Simulator
-      run: |
-        echo "🚀 Testing on iOS Simulator..."
-        
-        # Start simulator
-        SIMULATOR_ID=$(xcrun simctl list devices available | grep "iPhone 15 Pro (" | head -1 | sed 's/.*(\([^)]*\)).*/\1/')
-        
-        if [ ! -z "$SIMULATOR_ID" ]; then
-          xcrun simctl boot "$SIMULATOR_ID"
-          sleep 10
+    - name: Cache CocoaPods
+      uses: actions/cache@v3
+      with:
+        path: Pods
+        key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pods-
           
-          echo "✅ Simulator booted successfully: $SIMULATOR_ID"
-          
-          # You could run UI tests here
-          echo "📊 Simulator is ready for UI testing"
-          
-          xcrun simctl shutdown "$SIMULATOR_ID"
+    # Install CocoaPods if Podfile exists
+    - name: Install CocoaPods
+      run: |
+        if [ -f "Podfile" ]; then
+          echo "📦 Installing CocoaPods dependencies..."
+          pod install
+        else
+          echo "ℹ️ No Podfile found, skipping CocoaPods installation"
         fi
         
-    - name: Build Summary
+    - name: List Xcode projects and workspaces
       run: |
-        echo "📊 Build Summary:"
-        echo "================"
-        echo "✅ Swift Package: Built successfully"
-        echo "✅ Unit Tests: Passed"
-        echo "✅ iOS Simulator: Compatible"
-        echo "✅ CI/CD Pipeline: Working"
+        echo "🔍 Available .xcodeproj files:"
+        find . -name "*.xcodeproj" -type d
+        echo "🔍 Available .xcworkspace files:"
+        find . -name "*.xcworkspace" -type d
+        
+    # Build the main app
+    - name: Build MockApp
+      run: |
+        cd MockApp
+        if [ -f "MockApp.xcworkspace" ]; then
+          echo "🏗️ Building workspace..."
+          xcodebuild -workspace MockApp.xcworkspace \
+                     -scheme MockApp \
+                     -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+                     -configuration Debug \
+                     build
+        elif [ -f "MockApp.xcodeproj" ]; then
+          echo "🏗️ Building project..."
+          xcodebuild -project MockApp.xcodeproj \
+                     -scheme MockApp \
+                     -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+                     -configuration Debug \
+                     build
+        else
+          echo "❌ No MockApp.xcodeproj or MockApp.xcworkspace found"
+          exit 1
+        fi
+        
+    # Run tests
+    - name: Run Tests
+      run: |
+        cd MockApp
+        echo "🧪 Running tests..."
+        if [ -f "MockApp.xcworkspace" ]; then
+          xcodebuild test \
+                     -workspace MockApp.xcworkspace \
+                     -scheme MockApp \
+                     -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+                     -configuration Debug \
+                     -enableCodeCoverage YES
+        elif [ -f "MockApp.xcodeproj" ]; then
+          xcodebuild test \
+                     -project MockApp.xcodeproj \
+                     -scheme MockApp \
+                     -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+                     -configuration Debug \
+                     -enableCodeCoverage YES
+        fi
+        
