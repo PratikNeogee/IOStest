@@ -47,7 +47,7 @@ jobs:
     # Build the main app
     - name: Build MockApp
       run: |
-        cd MockApp
+        cd mock-ios-project
         if [ -f "MockApp.xcworkspace" ]; then
           echo "🏗️ Building workspace..."
           xcodebuild -workspace MockApp.xcworkspace \
